@@ -55,11 +55,24 @@ service cloud.firestore {
         && request.resource.data.type is string && request.resource.data.type in ['Homework', 'Quiz/Exam', 'Event']
         && request.resource.data.createdAt is number;
     }
+    function isValidStats() {
+      return request.resource.data.keys().hasOnly(['homework', 'quizExam', 'event', 'total'])
+        && request.resource.data.get('homework', 0) is number
+        && request.resource.data.get('quizExam', 0) is number
+        && request.resource.data.get('event', 0) is number
+        && request.resource.data.get('total', 0) is number;
+    }
 
     match /users/{userId}/tasks/{taskId} {
       allow read, delete: if isOwner(userId);
 
       allow create, update: if isOwner(userId) && isValidTask();
+    }
+
+    // Per-user completion streaks live at /users/{userId}/stats.
+    match /users/{userId}/stats {
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId) && isValidStats();
     }
 
     match /{document=**} {
