@@ -69,8 +69,8 @@ service cloud.firestore {
       allow create, update: if isOwner(userId) && isValidTask();
     }
 
-    // Per-user completion streaks live at /users/{userId}/stats.
-    match /users/{userId}/stats {
+    // Per-user completion streaks live at /users/{userId}/stats/current.
+    match /users/{userId}/stats/{statDoc} {
       allow read: if isOwner(userId);
       allow create, update: if isOwner(userId) && isValidStats();
     }
