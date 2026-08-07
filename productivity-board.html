@@ -88,7 +88,10 @@
     ];
     const TYPE_STYLE = { Homework: 'border-blue-400/20 bg-blue-400/10 text-blue-200', 'Quiz/Exam': 'border-fuchsia-400/20 bg-fuchsia-400/10 text-fuchsia-200', Event: 'border-amber-400/20 bg-amber-400/10 text-amber-100' };
     const $ = id => document.getElementById(id);
-    let tasks = JSON.parse(localStorage.getItem('orbit-local-tasks') || '[]');
+    // Tasks are private per account: never seeded from localStorage (which could hold
+    // another user's leftover guest data on a shared computer). The board starts empty
+    // until the signed-in user's cloud tasks arrive.
+    let tasks = [];
     // Firebase config lives in firebase-config.js, so end users never have to configure sync.
     const FIREBASE_CONFIG = window.ORBIT_FIREBASE_CONFIG || null;
     let filter = 'All', cloud = null, unsubscribe = null, accountMode = 'signin';
@@ -98,7 +101,6 @@
     function todayKey() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
     function bucket(task) { const diff = Math.round((dayStart(parseDay(task.dueDate)) - dayStart()) / 86400000); return diff < 0 ? 'past' : diff === 0 ? 'today' : diff <= 7 ? 'week' : 'upcoming'; }
     function formatDate(key) { return parseDay(key).toLocaleDateString(undefined, { month:'short', day:'numeric', year: parseDay(key).getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined }); }
-    function persistLocal() { localStorage.setItem('orbit-local-tasks', JSON.stringify(tasks)); }
     function safe(text) { return String(text).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[c])); }
     function render() {
       const board = $('board'); board.innerHTML = '';
@@ -133,8 +135,8 @@
     $('closeDialog').onclick = () => dialog.close();
     $('modeToggle').onclick = () => { $('accountError').classList.add('hidden'); setAccountMode(accountMode === 'signin' ? 'signup' : 'signin'); };
     $('accountForm').addEventListener('submit', async e => { e.preventDefault(); if (!cloud) return showAccountError('Accounts are being configured for this site. Please try again shortly.'); try { if (accountMode === 'signup') await cloud.authMod.createUserWithEmailAndPassword(cloud.auth, $('email').value, $('password').value); else await cloud.authMod.signInWithEmailAndPassword(cloud.auth, $('email').value, $('password').value); dialog.close(); } catch (err) { showAccountError(err.code === 'auth/email-already-in-use' ? 'That email already has an account. Try signing in.' : err.code === 'auth/invalid-credential' ? 'Email or password is incorrect.' : err.message.replace('Firebase: ', '')); } });
-    $('signOut').onclick = () => cloud?.authMod.signOut(cloud.auth);
-    async function connectAccounts(config) { const [{ initializeApp }, authMod, firestore] = await Promise.all([import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js'), import('https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js'), import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js')]); const app = initializeApp(config); const auth = authMod.getAuth(app), db = firestore.getFirestore(app); cloud = { db, auth, authMod, ...firestore, user: null }; authMod.onAuthStateChanged(auth, user => { if (unsubscribe) unsubscribe(); cloud.user = user; if (!user) { tasks = []; $('syncStatus').textContent = 'Guest mode'; $('accountBtn').textContent = 'Sign in'; $('signOut').classList.add('hidden'); render(); return; } $('syncStatus').textContent = user.email || 'Signed in'; $('accountBtn').textContent = 'Account'; $('signOut').classList.remove('hidden'); unsubscribe = firestore.onSnapshot(firestore.collection(db, 'users', user.uid, 'tasks'), snapshot => { tasks = snapshot.docs.map(d => ({ id:d.id, ...d.data() })); render(); }); }); }
+    $('signOut').onclick = () => { dialog.close(); cloud?.authMod.signOut(cloud.auth); };
+    async function connectAccounts(config) { const [{ initializeApp }, authMod, firestore] = await Promise.all([import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js'), import('https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js'), import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js')]); const app = initializeApp(config); const auth = authMod.getAuth(app), db = firestore.getFirestore(app); cloud = { db, auth, authMod, ...firestore, user: null }; authMod.onAuthStateChanged(auth, user => { if (unsubscribe) unsubscribe(); cloud.user = user; if (!user) { tasks = []; localStorage.removeItem('orbit-local-tasks'); $('syncStatus').textContent = 'Guest mode'; $('accountBtn').textContent = 'Sign in'; $('signOut').classList.add('hidden'); render(); return; } localStorage.removeItem('orbit-local-tasks'); $('syncStatus').textContent = user.email || 'Signed in'; $('accountBtn').textContent = 'Account'; $('signOut').classList.remove('hidden'); unsubscribe = firestore.onSnapshot(firestore.collection(db, 'users', user.uid, 'tasks'), snapshot => { tasks = snapshot.docs.map(d => ({ id:d.id, ...d.data() })); render(); }); }); }
     if (FIREBASE_CONFIG?.projectId) connectAccounts(FIREBASE_CONFIG).catch(() => showAccountError('Account service is unavailable right now.'));
     render();
   </script>

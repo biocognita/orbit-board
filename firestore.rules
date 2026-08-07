@@ -1,0 +1,17 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Every user's tasks live under /users/{userId}/tasks.
+    // A signed-in user may read and change ONLY their own tasks.
+    match /users/{userId}/tasks/{taskId} {
+      allow read, create, update, delete: if request.auth != null
+        && request.auth.uid == userId;
+    }
+
+    // Deny access to everything else (including other collections
+    // and listing users) unless an explicit rule above allows it.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

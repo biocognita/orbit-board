@@ -2,11 +2,12 @@
 
 ## Files to upload
 
-Upload these three files to the root of your GitHub repository:
+Upload these four files to the root of your GitHub repository:
 
 - `index.html`
 - `productivity-board.html`
-- `firebase-config.js` (replace `null` with your Firebase Web App configuration)
+- `firebase-config.js` (already contains the Orbit Board Firebase project config)
+- `firestore.rules` (the security rules that keep each user's data private)
 
 Do not upload the `.git` folder. The `index.html` file opens the board automatically.
 
@@ -20,7 +21,12 @@ Do not upload the `.git` folder. The `index.html` file opens the board automatic
 
 ## 2. Secure each user's tasks
 
-In **Firestore Database** → **Rules**, replace the rules with the following and click **Publish**:
+The board already writes every task under `users/{your-uid}/tasks`, and `firestore.rules` makes sure no one can touch another person's data. The rules file is included in this project — use it two ways:
+
+- **Easiest:** open `firestore.rules` in a text editor, copy its contents, then in **Firestore Database** → **Rules**, paste them and click **Publish**.
+- **With the Firebase CLI:** run `firebase deploy --only firestore:rules` from this folder.
+
+For reference, the rules are:
 
 ```text
 rules_version = '2';
@@ -30,11 +36,14 @@ service cloud.firestore {
       allow read, create, update, delete: if request.auth != null
         && request.auth.uid == userId;
     }
+    match /{document=**} {
+      allow read, write: if false;
+    }
   }
 }
 ```
 
-These rules mean a signed-in user can read and change only their own tasks.
+These rules mean a signed-in user can read and change only their own tasks, and everything else (including other users' documents and the list of users) is denied. Until you publish these rules, Firestore may be in test mode where any visitor can read or edit any task — so publish them before sharing the site.
 
 ## 3. Upload and activate GitHub Pages
 
