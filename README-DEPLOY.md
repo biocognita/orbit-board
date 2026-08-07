@@ -43,35 +43,23 @@ The rules are:
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+    function isValidTask() {
+      return request.resource.data.keys().hasOnly(['id', 'title', 'dueDate', 'type', 'createdAt'])
+        && request.resource.data.id is string && request.resource.data.id.size() <= 64
+        && request.resource.data.title is string && request.resource.data.title.size() <= 120
+        && request.resource.data.dueDate is string && request.resource.data.dueDate.size() == 10
+        && request.resource.data.dueDate >= '0000-01-01' && request.resource.data.dueDate <= '9999-12-31'
+        && request.resource.data.type is string && request.resource.data.type in ['Homework', 'Quiz/Exam', 'Event']
+        && request.resource.data.createdAt is number;
+    }
+
     match /users/{userId}/tasks/{taskId} {
-      allow read, delete: if request.auth != null
-        && request.auth.uid == userId;
+      allow read, delete: if isOwner(userId);
 
-      allow create: if request.auth != null
-        && request.auth.uid == userId
-        && request.resource.data.keys().hasOnly(['id', 'title', 'dueDate', 'type', 'createdAt'])
-        && request.resource.data.id is string && request.resource.data.id.size() <= 64
-        && request.resource.data.title is string && request.resource.data.title.size() <= 120
-        && request.resource.data.dueDate is string
-        && request.resource.data.dueDate.size() == 10
-        && request.resource.data.dueDate >= '2000-01-01'
-        && request.resource.data.dueDate <= '2099-12-31'
-        && request.resource.data.type is string
-        && request.resource.data.type in ['Homework', 'Quiz/Exam', 'Event']
-        && request.resource.data.createdAt is number;
-
-      allow update: if request.auth != null
-        && request.auth.uid == userId
-        && request.resource.data.keys().hasOnly(['id', 'title', 'dueDate', 'type', 'createdAt'])
-        && request.resource.data.id is string && request.resource.data.id.size() <= 64
-        && request.resource.data.title is string && request.resource.data.title.size() <= 120
-        && request.resource.data.dueDate is string
-        && request.resource.data.dueDate.size() == 10
-        && request.resource.data.dueDate >= '2000-01-01'
-        && request.resource.data.dueDate <= '2099-12-31'
-        && request.resource.data.type is string
-        && request.resource.data.type in ['Homework', 'Quiz/Exam', 'Event']
-        && request.resource.data.createdAt is number;
+      allow create, update: if isOwner(userId) && isValidTask();
     }
 
     match /{document=**} {
